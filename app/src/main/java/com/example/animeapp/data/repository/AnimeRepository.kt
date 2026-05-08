@@ -2,12 +2,17 @@ package com.example.animeapp.data.repository
 
 import com.example.animeapp.data.model.Anime
 import com.example.animeapp.data.model.WatchStatus
-import com.example.animeapp.data.remote.RetrofitInstance
+import com.example.animeapp.data.remote.AnimeApi
 
-class AnimeRepository {
+class AnimeRepository(
+    private val api: AnimeApi
+) {
 
-    suspend fun searchAnime(query: String): List<Anime> {
-        val response = RetrofitInstance.api.searchAnime(query)
+    suspend fun getAnime(query: String): List<Anime> {
+        val response = api.getAnime(
+            query = query.ifBlank { null }
+        )
+
         return response.data.map { apiAnime ->
             Anime(
                 mal_id = apiAnime.mal_id,
@@ -22,8 +27,8 @@ class AnimeRepository {
     }
 
     suspend fun getAnimeById(id: Int): Anime {
-        val response = RetrofitInstance.api.getAnimeById(id)
-        val apiAnime = response.data
+        val apiAnime = api.getAnimeById(id).data
+
         return Anime(
             mal_id = apiAnime.mal_id,
             title = apiAnime.title,

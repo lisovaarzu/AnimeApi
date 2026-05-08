@@ -1,13 +1,29 @@
 package com.example.animeapp.ui.screens
 
 import androidx.compose.foundation.clickable
-import androidx.compose.foundation.layout.*
+import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.lazy.LazyColumn
-import androidx.compose.foundation.lazy.LazyRow
 import androidx.compose.foundation.lazy.items
-import androidx.compose.material3.*
-import androidx.compose.runtime.*
+import androidx.compose.material3.AssistChip
+import androidx.compose.material3.Button
+import androidx.compose.material3.CircularProgressIndicator
+import androidx.compose.material3.ElevatedCard
+import androidx.compose.material3.FilterChip
+import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.OutlinedTextField
+import androidx.compose.material3.Text
+import androidx.compose.runtime.Composable
+import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import com.example.animeapp.data.model.Anime
 import com.example.animeapp.data.model.WatchStatus
@@ -16,89 +32,147 @@ import com.example.animeapp.ui.viewmodel.AnimeUiState
 @Composable
 fun AnimeListScreen(
     state: AnimeUiState,
-    onSearch: (String) -> Unit,
-    onRetry: (String) -> Unit,
+    query: String,
+    selectedStatus: WatchStatus?,
+    onQueryChange: (String) -> Unit,
+    onRetry: () -> Unit,
     onItemClick: (Int) -> Unit,
     onToggleFavorite: (Int) -> Unit,
     onOpenFavorites: () -> Unit,
     onFilter: (WatchStatus) -> Unit,
     onClearFilter: () -> Unit
 ) {
-    var query by remember { mutableStateOf("") }
-    var selectedFilter by remember { mutableStateOf<WatchStatus?>(null) }
+    Column(
+        modifier = Modifier
+            .fillMaxSize()
+            .padding(16.dp)
+    ) {
 
-    Column(modifier = Modifier.fillMaxSize()) {
-        Button(
-            onClick = { onOpenFavorites() },
-            modifier = Modifier.padding(8.dp)
+        Row(
+            modifier = Modifier.fillMaxWidth(),
+            horizontalArrangement = Arrangement.SpaceBetween,
+            verticalAlignment = Alignment.CenterVertically
         ) {
-            Text("Favorites")
+
+            Column {
+                Text(
+                    text = "Anime Library",
+                    style = MaterialTheme.typography.headlineMedium,
+                    fontWeight = FontWeight.Bold
+                )
+
+                Text(
+                    text = "Search titles from Jikan API",
+                    style = MaterialTheme.typography.bodyMedium
+                )
+            }
+
+            Button(onClick = onOpenFavorites) {
+                Text("Favorites")
+            }
         }
 
-        TextField(
+        Spacer(modifier = Modifier.height(16.dp))
+
+        OutlinedTextField(
             value = query,
-            onValueChange = { query = it },
+            onValueChange = onQueryChange,
             label = { Text("Search anime") },
+            singleLine = true,
             modifier = Modifier.fillMaxWidth()
         )
 
-        Button(
-            onClick = { onSearch(query) },
-            modifier = Modifier.padding(8.dp)
-        ) {
-            Text("Search")
-        }
+        Spacer(modifier = Modifier.height(12.dp))
 
-        LazyRow(
-            modifier = Modifier.padding(vertical = 8.dp)
+        Row(
+            horizontalArrangement = Arrangement.spacedBy(8.dp)
         ) {
-            val filters = listOf(
-                "PLANNED",
-                "WATCHING",
-                "COMPLETED"
+
+            FilterChip(
+                selected = selectedStatus == null,
+                onClick = onClearFilter,
+                label = { Text("All") }
             )
 
-            items(filters) { filter ->
-                Button(
-                    onClick = {
-                        val status = WatchStatus.valueOf(filter)
-                        selectedFilter = status
-                        onFilter(status)
-                    },
-                    modifier = Modifier.padding(4.dp)
-                ) {
-                    Text(filter)
-                }
+            WatchStatus.values().forEach { status ->
+
+                FilterChip(
+                    selected = selectedStatus == status,
+                    onClick = { onFilter(status) },
+                    label = { Text(status.title()) }
+                )
             }
         }
 
+        Spacer(modifier = Modifier.height(12.dp))
+
         when (state) {
+
             is AnimeUiState.Loading -> {
-                Text("Loading...", modifier = Modifier.padding(16.dp))
+
+                Box(
+                    modifier = Modifier.fillMaxSize(),
+                    contentAlignment = Alignment.Center
+                ) {
+                    CircularProgressIndicator()
+                }
             }
 
             is AnimeUiState.Error -> {
-                Column {
-                    Text("Error")
-                    Button(onClick = { onRetry(query) }) {
-                        Text("Retry")
+
+                Box(
+                    modifier = Modifier.fillMaxSize(),
+                    contentAlignment = Alignment.Center
+                ) {
+
+                    Column(horizontalAlignment = Alignment.CenterHorizontally) {
+
+                        Text(
+                            text = "Failed to load anime",
+                            style = MaterialTheme.typography.titleMedium
+                        )
+
+                        Spacer(modifier = Modifier.height(8.dp))
+
+                        Text(
+                            text = state.message,
+                            style = MaterialTheme.typography.bodyMedium
+                        )
+
+                        Spacer(modifier = Modifier.height(16.dp))
+
+                        Button(onClick = onRetry) {
+                            Text("Retry")
+                        }
                     }
                 }
             }
 
             is AnimeUiState.Empty -> {
-                Text("Nothing found", modifier = Modifier.padding(16.dp))
+
+                Box(
+                    modifier = Modifier.fillMaxSize(),
+                    contentAlignment = Alignment.Center
+                ) {
+
+                    Text(
+                        "Nothing found",
+                        style = MaterialTheme.typography.titleMedium
+                    )
+                }
             }
 
             is AnimeUiState.Success -> {
-                val filteredData = if (selectedFilter == null) {
-                    state.data
-                } else {
-                    state.data.filter { it.userStatus == selectedFilter }
-                }
 
-                LazyColumn {
-                    items(filteredData) { anime ->
+                LazyColumn(
+                    verticalArrangement = Arrangement.spacedBy(8.dp)
+                ) {
+
+                    items(
+                        items = state.data,
+                        key = { it.mal_id }
+                    ) { anime ->
+
                         AnimeItem(
                             anime = anime,
                             onClick = { onItemClick(anime.mal_id) },
@@ -117,28 +191,68 @@ fun AnimeItem(
     onClick: () -> Unit,
     onFavoriteClick: () -> Unit
 ) {
-    Card(
+
+    ElevatedCard(
         modifier = Modifier
             .fillMaxWidth()
-            .padding(8.dp)
             .clickable { onClick() }
     ) {
+
         Column(modifier = Modifier.padding(16.dp)) {
-            Text(anime.title, style = MaterialTheme.typography.titleMedium)
-            Text("Year: ${anime.year ?: "—"}", style = MaterialTheme.typography.bodySmall)
-            Text("Episodes: ${anime.episodes ?: "—"}", style = MaterialTheme.typography.bodySmall)
-            Text("Status: ${anime.userStatus.name}", style = MaterialTheme.typography.bodySmall)
 
             Row(
                 modifier = Modifier.fillMaxWidth(),
-                horizontalArrangement = Arrangement.SpaceBetween
+                horizontalArrangement = Arrangement.SpaceBetween,
+                verticalAlignment = Alignment.Top
             ) {
-                Text("Details →", modifier = Modifier.clickable { onClick() })
+
+                Column(modifier = Modifier.weight(1f)) {
+
+                    Text(
+                        text = anime.title,
+                        style = MaterialTheme.typography.titleMedium,
+                        fontWeight = FontWeight.Bold
+                    )
+
+                    Spacer(modifier = Modifier.height(4.dp))
+
+                    Text("Year: ${anime.year ?: "—"}")
+                    Text("Episodes: ${anime.episodes ?: "—"}")
+                }
+
                 Text(
                     text = if (anime.isFavorite) "❤️" else "🤍",
-                    modifier = Modifier.clickable { onFavoriteClick() }
+                    modifier = Modifier
+                        .padding(start = 12.dp)
+                        .clickable { onFavoriteClick() }
+                )
+            }
+
+            Spacer(modifier = Modifier.height(12.dp))
+
+            Row(
+                horizontalArrangement = Arrangement.spacedBy(8.dp)
+            ) {
+
+                AssistChip(
+                    onClick = {},
+                    label = { Text(anime.userStatus.title()) }
+                )
+
+                AssistChip(
+                    onClick = onClick,
+                    label = { Text("Details") }
                 )
             }
         }
+    }
+}
+
+fun WatchStatus.title(): String {
+
+    return when (this) {
+        WatchStatus.PLANNED -> "Planned"
+        WatchStatus.WATCHING -> "Watching"
+        WatchStatus.COMPLETED -> "Completed"
     }
 }
