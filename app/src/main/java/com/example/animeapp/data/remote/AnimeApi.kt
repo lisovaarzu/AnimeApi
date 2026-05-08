@@ -11,7 +11,8 @@ interface AnimeApi {
     @GET("anime")
     suspend fun getAnime(
         @Query("q") query: String? = null,
-        @Query("page") page: Int = 1
+        @Query("page") page: Int = 1,
+        @Query("limit") limit: Int = 10
     ): AnimeSearchResponse
 
     @GET("anime/{id}")
