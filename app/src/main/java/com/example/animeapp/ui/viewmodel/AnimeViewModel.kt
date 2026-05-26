@@ -5,12 +5,15 @@ import androidx.lifecycle.viewModelScope
 import com.example.animeapp.data.model.Anime
 import com.example.animeapp.data.model.WatchStatus
 import com.example.animeapp.data.repository.AnimeRepository
+import dagger.hilt.android.lifecycle.HiltViewModel
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.launch
+import javax.inject.Inject
 
-class AnimeViewModel(
+@HiltViewModel
+class AnimeViewModel @Inject constructor(
     private val repository: AnimeRepository
 ) : ViewModel() {
 
@@ -31,10 +34,9 @@ class AnimeViewModel(
 
     private var sourceList: List<Anime> = emptyList()
     private var currentList: List<Anime> = emptyList()
-    private val favoriteIds = mutableSetOf<Int>()
-    private val statuses = mutableMapOf<Int, WatchStatus>()
 
     init {
+        observeFavorites()
         loadAnime()
     }
 
@@ -42,8 +44,7 @@ class AnimeViewModel(
         viewModelScope.launch {
             _uiState.value = AnimeUiState.Loading
             try {
-                val result = repository.getAnime(_query.value)
-                sourceList = result.map(::applyUserData)
+                sourceList = repository.getAnime(_query.value)
                 updateListState()
             } catch (e: Exception) {
                 _uiState.value = AnimeUiState.Error(e.message ?: "Ошибка загрузки")
@@ -65,7 +66,7 @@ class AnimeViewModel(
         viewModelScope.launch {
             _detailUiState.value = AnimeDetailUiState.Loading
             try {
-                val anime = applyUserData(repository.getAnimeById(id))
+                val anime = repository.getAnimeById(id)
                 _detailUiState.value = AnimeDetailUiState.Success(anime)
             } catch (e: Exception) {
                 _detailUiState.value = AnimeDetailUiState.Error(e.message ?: "Ошибка загрузки")
@@ -74,27 +75,37 @@ class AnimeViewModel(
     }
 
     fun toggleFavorite(id: Int) {
-        if (id in favoriteIds) {
-            favoriteIds.remove(id)
-        } else {
-            favoriteIds.add(id)
-        }
+        viewModelScope.launch {
+            val anime = findAnime(id) ?: return@launch
 
-        sourceList = sourceList.map(::applyUserData)
-        currentList = currentList.map(::applyUserData)
-        updateCurrentUiState()
-        updateFavorites()
-        updateDetailState(id)
+            if (anime.isFavorite) {
+                repository.removeFavorite(id)
+            } else {
+                repository.addFavorite(anime.copy(isFavorite = true))
+            }
+
+            refreshAfterRoomChange(id)
+        }
     }
 
     fun updateStatus(id: Int, newStatus: WatchStatus) {
-        statuses[id] = newStatus
+        viewModelScope.launch {
+            val anime = findAnime(id)?.copy(userStatus = newStatus) ?: return@launch
 
-        sourceList = sourceList.map(::applyUserData)
-        currentList = currentList.map(::applyUserData)
-        updateCurrentUiState()
-        updateFavorites()
-        updateDetailState(id)
+            if (anime.isFavorite) {
+                repository.updateFavoriteStatus(anime, newStatus)
+            }
+
+            sourceList = sourceList.map {
+                if (it.mal_id == id) it.copy(userStatus = newStatus) else it
+            }
+            currentList = currentList.map {
+                if (it.mal_id == id) it.copy(userStatus = newStatus) else it
+            }
+
+            updateCurrentUiState()
+            updateDetailState(id, anime.copy(userStatus = newStatus))
+        }
     }
 
     fun filterByStatus(status: WatchStatus) {
@@ -107,13 +118,63 @@ class AnimeViewModel(
         updateListState()
     }
 
+    private fun observeFavorites() {
+        viewModelScope.launch {
+            repository.getFavorites().collect { favorites ->
+                _favorites.value = favorites
+
+                val favoriteIds = favorites.map { it.mal_id }.toSet()
+
+                sourceList = sourceList.map { anime ->
+                    anime.copy(isFavorite = anime.mal_id in favoriteIds)
+                }
+
+                currentList = currentList.map { anime ->
+                    anime.copy(isFavorite = anime.mal_id in favoriteIds)
+                }
+
+                updateCurrentUiState()
+
+                val detailState = _detailUiState.value
+                if (detailState is AnimeDetailUiState.Success) {
+                    val updatedAnime = detailState.anime.copy(
+                        isFavorite = detailState.anime.mal_id in favoriteIds
+                    )
+                    _detailUiState.value = AnimeDetailUiState.Success(updatedAnime)
+                }
+            }
+        }
+    }
+
+    private fun refreshAfterRoomChange(id: Int) {
+        viewModelScope.launch {
+            val favoriteIds = repository.getFavoriteIds()
+
+            sourceList = sourceList.map { anime ->
+                anime.copy(isFavorite = anime.mal_id in favoriteIds)
+            }
+
+            currentList = currentList.map { anime ->
+                anime.copy(isFavorite = anime.mal_id in favoriteIds)
+            }
+
+            updateCurrentUiState()
+
+            val detailState = _detailUiState.value
+            if (detailState is AnimeDetailUiState.Success && detailState.anime.mal_id == id) {
+                _detailUiState.value = AnimeDetailUiState.Success(
+                    detailState.anime.copy(isFavorite = id in favoriteIds)
+                )
+            }
+        }
+    }
+
     private fun updateListState() {
         currentList = _selectedStatus.value?.let { status ->
             sourceList.filter { it.userStatus == status }
         } ?: sourceList
 
         updateCurrentUiState()
-        updateFavorites()
     }
 
     private fun updateCurrentUiState() {
@@ -124,21 +185,21 @@ class AnimeViewModel(
         }
     }
 
-    private fun updateFavorites() {
-        _favorites.value = sourceList.filter { it.mal_id in favoriteIds }
-    }
-
-    private fun updateDetailState(id: Int) {
+    private fun updateDetailState(id: Int, anime: Anime) {
         val state = _detailUiState.value
         if (state is AnimeDetailUiState.Success && state.anime.mal_id == id) {
-            _detailUiState.value = AnimeDetailUiState.Success(applyUserData(state.anime))
+            _detailUiState.value = AnimeDetailUiState.Success(anime)
         }
     }
 
-    private fun applyUserData(anime: Anime): Anime {
-        return anime.copy(
-            isFavorite = anime.mal_id in favoriteIds,
-            userStatus = statuses[anime.mal_id] ?: WatchStatus.PLANNED
-        )
+    private fun findAnime(id: Int): Anime? {
+        val detailState = _detailUiState.value
+        if (detailState is AnimeDetailUiState.Success && detailState.anime.mal_id == id) {
+            return detailState.anime
+        }
+
+        return sourceList.firstOrNull { it.mal_id == id }
+            ?: currentList.firstOrNull { it.mal_id == id }
+            ?: _favorites.value.firstOrNull { it.mal_id == id }
     }
 }

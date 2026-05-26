@@ -3,25 +3,25 @@ package com.example.animeapp
 import android.os.Bundle
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
-import androidx.lifecycle.viewmodel.compose.viewModel
-import com.example.animeapp.data.remote.RetrofitInstance
-import com.example.animeapp.data.repository.AnimeRepository
+import androidx.activity.enableEdgeToEdge
+import androidx.activity.viewModels
 import com.example.animeapp.navigation.NavGraph
 import com.example.animeapp.ui.theme.AnimeAppTheme
 import com.example.animeapp.ui.viewmodel.AnimeViewModel
-import com.example.animeapp.ui.viewmodel.AnimeViewModelFactory
+import dagger.hilt.android.AndroidEntryPoint
 
+@AndroidEntryPoint
 class MainActivity : ComponentActivity() {
+
+    private val viewModel: AnimeViewModel by viewModels()
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
 
-        val repository = AnimeRepository(RetrofitInstance.api)
-        val factory = AnimeViewModelFactory(repository)
+        enableEdgeToEdge()
 
         setContent {
             AnimeAppTheme {
-                val viewModel: AnimeViewModel = viewModel(factory = factory)
                 NavGraph(viewModel = viewModel)
             }
         }
