@@ -20,7 +20,7 @@ class MainActivity : ComponentActivity() {
         val factory = AnimeViewModelFactory(repository)
 
         setContent {
-            AnimeAppTheme(dynamicColor = false) {
+            AnimeAppTheme {
                 val viewModel: AnimeViewModel = viewModel(factory = factory)
                 NavGraph(viewModel = viewModel)
             }
