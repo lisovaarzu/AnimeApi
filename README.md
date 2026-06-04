@@ -1,0 +1,24 @@
+# AnimeApi
+Фарафонтова Арзу Шакировна
+Б9124-09.03.03пикд(3)
+
+## Какой API выбран
+Jikan API v4, Anime
+
+## Кратко, что даёт этот API
+Поиск аниме по названию, получение детальной информации
+
+## Как запустить проект
+1. Клонировать репозиторий
+2. Открыть проект в Android Studio
+3. Подключить телефон с отладкой по USB или запустить эмулятор
+4. Нажать Run (зелёный треугольник)
+
+## Нужен ли ключ API
+API не требует ключа аутентификации
+
+##  Скриншоты
+<img width="373" height="807" alt="image" src="https://github.com/user-attachments/assets/e00102d8-4306-43d1-8750-8688f9a38cf6" />
+<img width="369" height="806" alt="image" src="https://github.com/user-attachments/assets/3b53e36b-ad23-4c67-ad02-846885a7dff3" />
+<img width="372" height="808" alt="image" src="https://github.com/user-attachments/assets/05b727fc-9fd5-4dda-8a62-b941188a3c18" />
+<img width="367" height="804" alt="image" src="https://github.com/user-attachments/assets/5c87581c-de41-4d8a-887b-58911a63b6bb" />
